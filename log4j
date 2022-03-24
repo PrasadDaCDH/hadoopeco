@@ -1,0 +1,10 @@
+Log4j updates
+https://www.youtube.com/watch?v=RI3jL3e84C0&t=357s
+
+https://gist.github.com/SwitHak/b66db3a06c2955a9cb71a8718970c592
+https://access.redhat.com/security/vulnerabilities/RHSB-2021-009
+
+1> get the INI file jsl64.ini into the main page
+2> get the three jars into temp folder
+3> Delete the orginal jar files
+4> go to the jsl64.ini file (find / -type d -name "jmxbridge*"
