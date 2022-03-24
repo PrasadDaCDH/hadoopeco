@@ -1,0 +1,34 @@
+https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html-single/upgrading_from_rhel_6_to_rhel_7/index
+
+preuisites 
+1> we need rhel 7.9 iso
+2>TO unlock any plugins
+ #yum versionlock clear
+3> Enable subscription manager repos
+subscription-manager repos --enable rhel-6-server-extras-rpms --enable rhel-6-server-optional-rpms
+
+4>Install preugrade assistant and rhel tool to upgrade
+yum install preupgrade-assistant preupgrade-assistant-el6toel7 redhat-upgrade-tool
+
+5> Use yum update 1st on the system
+yum update 
+
+6> reboot the systems (and make sure subscribtion manager is available)
+#shutdown -r now
+
+7>start using preupgrade tool
+#preupg
+(see the results in /root/preupgrade directory and make sure to solve all errors befoer upgrade)
+(then run preupg again) (to check until all issues are resolved)
+
+8>Disable all yum repos before upgrade
+#yum-config-manager --disable \*
+
+9>Now for the upgrade:
+#redhat-upgrade-tool --iso iso_path --cleanup-post
+
+10>reboot the system
+#reboot
+
+It will take some time but after that confrim 
+cat /etc/redhat-release
