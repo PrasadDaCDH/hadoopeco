@@ -8,3 +8,5 @@ https://access.redhat.com/security/vulnerabilities/RHSB-2021-009
 2> get the three jars into temp folder
 3> Delete the orginal jar files
 4> go to the jsl64.ini file (find / -type d -name "jmxbridge*"
+
+/usr/hdp/current/flume-server/bin/flume-ng agent --conf conf --conf-file /home/maria_dev/flume_uygulama_01/flumelogs.conf --name a1 -Dflume.root.logger=INFO,console -Dlog4j.configurationFile=/usr/hdp/current/flume-server/conf/log4j2.xml
