@@ -56,7 +56,7 @@ curl -u admin:admin -H "X-Requested-By:ambari" -i -X PUT -d '{"RequestInfo": {"c
 
 
 # Remove the old component
-curl -u admin:admin -H "X-Requested-By:ambari" -i -X DELETE http://godavari.localdomain:8080/api/v1/clusters/devcluster/hosts/mahanadi.localdomain/host_components/JOURNALNODE
+curl -u admin:admin -H "X-Requested-By:ambari" -i -X DELETE http://amabarihost:8080/api/v1/clusters/devcluster/hosts/ToInstall/host_components/JOURNALNODE
 
 Start all services 
 ENSURE THIS IS DONE AND ZOOKEEPER IS UP AND RUNNING OR NEITHER NAMENODE WILL BE ACTIVE
