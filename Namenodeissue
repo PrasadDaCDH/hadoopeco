@@ -1,0 +1,62 @@
+1>Will put HDFS in safe mode :
+
+hdfs dfsadmin -fs hdfs://activenamenodehost:8080 -safemode enter
+
+2>Will save the namespace:
+
+hdfs dfsadmin -fs hdfs://namenodehost:8080 -saveNamespace
+
+3>Stop all Both HDFS Namenodes services and JournalNode Services
+
+5>After the Intallation UPDATE: 
+
+<dfs.namenode.shared.edits.dir>  to      
+
+6>Copy the original journalnode data from good  to bad joural servers same directory
+
+:create dir on bad journal
+#mkdir /hadoop/hdfs/journal
+:scp from to new host
+scp -r /hadoop/hdfs/journal root@tonewjournal:/hadoop/hdfs/journal
+
+7>Start the JournalNode on new node on Ambari:
+
+curl -u admin:admin -H "X-Requested-By:ambari" -i -X PUT -d \
+'{"RequestInfo": {"context": "Start JournalNode","query":"HostRoles/component_name.in('JOURNALNODE')"}, "Body":{"HostRoles": {"state": "STARTED"}}}' \
+ambarihost:8080/api/v1/clusters/devcluster/hosts/hostyouwanttoremove/host_components/JOURNALNODE
+
+8>Start the rest of the journal nodes
+
+9>Start the active NameNode to refresh the configuration and then stop it.
+
+10>On the previous active Namenode : To Format a new shared edits dir and copy in enough edit log segments so that the standby NameNode can start up
+
+hdfs namenode -initializeSharedEdits -force
+hdfs zkfc -formatZK -force
+
+11>Restart the active NameNode
+
+12>On the standby NameNode run takes the current image from active namenode
+
+hdfs namenode -bootstrapStandby
+
+OR
+
+hdfs haadmin -transitionToActive 
+
+13>Start DataNodes
+
+14>Start standby NameNode
+
+15>Remove journal node by 
+
+
+# Stop JournalNode on old host 
+curl -u admin:admin -H "X-Requested-By:ambari" -i -X PUT -d '{"RequestInfo": {"context": "Stop JournalNode","query":"HostRoles/component_name.in('JOURNALNODE')"}, "Body":{"HostRoles": {"state": "INSTALLED"}}}' http://godavari.localdomain:8080/api/v1/clusters/devcluster/hosts/mahanadi.localdomain/host_components/JOURNALNODE
+
+
+# Remove the old component
+curl -u admin:admin -H "X-Requested-By:ambari" -i -X DELETE http://godavari.localdomain:8080/api/v1/clusters/devcluster/hosts/mahanadi.localdomain/host_components/JOURNALNODE
+
+Start all services 
+ENSURE THIS IS DONE AND ZOOKEEPER IS UP AND RUNNING OR NEITHER NAMENODE WILL BE ACTIVE
