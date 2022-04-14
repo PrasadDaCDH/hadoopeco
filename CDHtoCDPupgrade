@@ -1,0 +1,629 @@
+Upgrade from CDH (5.13.3) to CDP DC (7.1.1)
+
+Upgrade from Cloudera Manager/CDH 5.13.x - 5.16.x to CDP Data Center 7.1. This will upgrade CDH and Cloudera Manager to the following versions:
+⦁	Cloudera Runtime 7.1.1 or higher.
+⦁	Cloudera Manager 7.1.1 or higher.
+⦁	Upgrades from CDH 6.0 and higher to CDP Data Center 7.1 are not supported. You can, however, create a new CDP Data Center 7.1 cluster and then copy your data to the new cluster. 
+⦁	The major+minor version of Cloudera Manager must be equal to or higher than the major+minor version of CDH.
+⦁	CDH 5.x does not come equipped with spark 2, you can install spark 2 as per mentioned in below blog:
+Install Spark2
+
+# Collect Information
+⦁	Login to Cloudera Manager console > Administration > License:
+Make sure you have a proper Enterprise License key uploaded to Cloudera Manager during installation.
+⦁	Log in to the Cloudera Manager Server host.
+⦁	The current version of the Operating System:
+⦁	lsb_release -a
+⦁	Database parameters:
+⦁	cat /etc/cloudera-scm-server/db.properties 
+com.cloudera.cmf.db.type=mysql
+com.cloudera.cmf.db.host=database_hostname:database_port
+com.cloudera.cmf.db.name=scm
+com.cloudera.cmf.db.user=scm
+com.cloudera.cmf.db.password=SOME_PASSWORD
+⦁	Log in to the Cloudera Manager Admin console and find the following:
+⦁	The version of Cloudera Manager and JDK used in your cluster. Go to Support > About.
+
+
+# Upgrading JDK
+⦁	Considering your cluster is using open jdk.
+⦁	sudo yum install java-1.8.0-openjdk-devel
+⦁	Considering you want to migrate Oracle JDK to open JDK.
+⦁	sudo yum install java-1.8.0-openjdk-devel
+⦁	nano /etc/default/cloudera-scm-server
+export JAVA_HOME="/usr/lib/jvm/java-1.8.0-openjdk"
+⦁	sudo systemctl restart cloudera-scm-server
+
+⦁	Restart the Cloudera Management Service.
+⦁	Restart the cluster
+⦁	Cross check the upgraded JDK version by going to Support> About.
+⦁	Remove the JDK:
+⦁	yum remove <JDK package name>
+⦁	yum list installed |grep -i oracle
+
+# Cloudera Manager Pre-upgrade Steps
+⦁	Collect Information for Backing Up Cloudera Manager
+⦁	Log in to the Cloudera Manager Server host.
+⦁	Collect database information by running the following command:
+cat /etc/cloudera-scm-server/db.properties
+For example:
+...
+com.cloudera.cmf.db.type=...
+com.cloudera.cmf.db.host=database_hostname:database_port
+com.cloudera.cmf.db.name=scm
+com.cloudera.cmf.db.user=scm
+com.cloudera.cmf.db.password=SOME_PASSWORD
+⦁	Collect information (host name, port number, database name, user name and password) for the following databases.
+⦁	Reports Manager : dbname=rman, dbhost=ip-10-0-1-111.ec2.internal:7432 (subject to change)
+⦁	Activity Monitor (if installed)
+⦁	You can find the database information by using the Cloudera Manager Admin Console. Go to Clusters > Cloudera Management Service > Configuration and select the Database category. You may need to contact your database administrator to obtain the passwords. (or use the link: “⦁	http://ClouderaManager-server-hostname:7180/api/v11/cm/deployment” and search for database keyword you will get all the database related information, also you can use “⦁	http://⦁	<⦁	ClouderaManager-server-hostname⦁	>⦁	:7180/api/v11/clusters/<clustername>/services/<service-name>/config” )
+⦁	Find the host where the Service Monitor, Host Monitor and Event Server roles are running. Go to Clusters > Cloudera Manager Management Service > Instances and note which hosts are running these roles.
+⦁	Back Up Cloudera Manager Agent
+⦁	Backup up the following Cloudera Manager agent files on all hosts:
+The tar commands in the steps below may return the following message. It is safe to ignore this message:
+tar: Removing leading `/' from member names
+⦁	Create a top level backup directory.
+⦁	export CM_BACKUP_DIR="`date +%F`-CM5.13"
+⦁	echo $CM_BACKUP_DIR
+⦁	mkdir -p $CM_BACKUP_DIR
+⦁	 Back up the Agent directory and the runtime state.
+⦁	sudo -E tar -cf $CM_BACKUP_DIR/cloudera-scm-agent.tar --exclude=*.sock /etc/cloudera-scm-agent /etc/default/cloudera-scm-agent /var/run/cloudera-scm-agent /var/lib/cloudera-scm-agent
+⦁	Back up the existing repository directory.
+⦁	sudo -E tar -cf $CM_BACKUP_DIR/repository.tar /etc/yum.repos.d
+⦁	Back Up the Cloudera Management Service
+⦁	On the host where the Service Monitor role is configured to run, backup the following directory:
+sudo cp -rp /var/lib/cloudera-service-monitor /var/lib/cloudera-service-monitor-`date +%F`-CM5.13
+⦁	On the host where the Host Monitor role is configured to run, backup the following directory:
+sudo cp -rp /var/lib/cloudera-host-monitor /var/lib/cloudera-host-monitor-`date +%F`-CM5.13 
+⦁	On the host where the Event Server role is configured to run, back up the following directory:
+sudo cp -rp /var/lib/cloudera-scm-eventserver /var/lib/cloudera-scm-eventserver-`date +%F`-CM5.13  
+⦁	Stop Cloudera Manager Server & Cloudera Management Service
+⦁	Stop the Cloudera Management Service
+⦁	Log in to the Cloudera Manager Server host.
+⦁	Stop the Cloudera Manager Server.
+⦁	sudo systemctl stop cloudera-scm-server
+⦁	Back Up the Cloudera Manager Databases
+⦁	Back up the Cloudera Manager server database – Run the following command. (Replace placeholders with the actual values returned from the db.properties file): we used root user to dump database
+mysqldump --databases scm --host=database_hostname --port=database_port -u root -p > $HOME/scm-backup-`date +%F`-CM5.13.sql
+⦁	Back up All other Cloudera Manager databases - Use the database information that you collected in step1. You may need to contact your database administrator to obtain the passwords.
+⦁	These databases can include the following:
+⦁	Cloudera Manager Server - Contains all the information about services you have configured and their role assignments, all configuration history, commands, users, and running processes. This relatively small database (< 100 MB) is the most important to back up.
+⦁	Oozie Server - Contains Oozie workflow, coordinator, and bundle data. Can grow very large. (Only available when installing CDH 5 or CDH 6 clusters.)
+⦁	Sqoop Server - Contains entities such as the connector, driver, links and jobs. Relatively small. (Only available when installing CDH 5 or CDH 6 clusters.)
+⦁	Reports Manager - Tracks disk utilization and processing activities over time. Medium-sized.
+⦁	Hive Metastore Server - Contains Hive metadata. Relatively small.
+⦁	Hue Server - Contains user account information, job submissions, and Hive queries. Relatively small.
+⦁	 Run the following commands to back up the databases. (The command displayed below depends on the database you selected in the form at the top of this page. Replace placeholders with the actual values.):
+mysqldump --databases database_name --host=database_hostname --port=database_port -u database_username -p > $HOME/database_name-backup-`date +%F`-CM5.13.sql
+For example:
+⦁	mysqldump --databases scm --host=10.0.1.17 --port=3306 -u root -p > $HOME/scm-`date +%F`-CM5.13.sql
+⦁	mysqldump --databases metastore --host=10.0.1.17 --port=3306 -u root -p > $HOME/metastore-`date +%F`-CM5.13.sql
+⦁	mysqldump --databases rman --host=10.0.1.17 --port=3306 -u root -p > $HOME/rman-`date +%F`-CM5.13.sql
+⦁	mysqldump --databases sentry --host=10.0.1.17 --port=3306 -u root -p > $HOME/sentry-`date +%F`-CM5.13.sql
+⦁	mysqldump --databases amon --host=10.0.1.17 --port=3306 -u root -p > $HOME/amon-`date +%F`-CM5.13.sql
+⦁	Backup Cloudera Manager Server
+⦁	Log in to the Cloudera Manager Server host.
+⦁	Create a top-level backup directory.
+⦁	export CM_BACKUP_DIR="`date +%F`-CM5.13"
+⦁	echo $CM_BACKUP_DIR
+⦁	mkdir -p $CM_BACKUP_DIR
+⦁	Back up the Cloudera Manager Server directories:
+⦁	sudo -E tar -cf $CM_BACKUP_DIR/cloudera-scm-server.tar /etc/cloudera-scm-server /etc/default/cloudera-scm-server
+⦁	Back up the existing repository directory.
+⦁	sudo -E tar -cf $CM_BACKUP_DIR/repository.tar /etc/yum.repos.d
+⦁	(Optional) Start Cloudera Manager Server & Cloudera Management Service
+ If you will be immediately upgrading Cloudera Manager, skip this step and continue with Upgrading the Cloudera Manager Server.
+⦁	Log in to the Cloudera Manager Server host.
+⦁	sudo systemctl start cloudera-scm-server
+⦁	If the Cloudera Manager Server starts without errors, no response displays.
+
+⦁	Start the Cloudera Management Service.
+
+# Backup Databases:
+To back up the MySQL database, run the mysqldump command on the MySQL host, as follows:
+⦁	mysqldump -h hostname -u username -ppassword database > /tmp/database-backup.sql
+⦁	For example, to back up the Activity Monitor database amon, on the local host as the root user, with the password amon_password:
+mysqldump -pamon_password amon > /tmp/amon-backup.sql
+⦁	For example, to back up the Activity Monitor database amon, on the remote host as the root user, with the password amon_password:
+mysqldump -hmyhost.example.com -uroot -pamon_password amon > /tmp/amon-backup.sql
+⦁	You can back up all database using the following command: (use mysql root password)
+mysqldump --all-databases -ppassword > /tmp/all1/all.sql
+# Cloudera Manager Upgrade In Action
+Note: For upgrades from CDH 5 clusters with Sentry to Cloudera Runtime 7.1.1 (or higher) clusters where Sentry privileges are to be transitioned to Apache Ranger, the cluster must have Kerberos enabled before upgrading.
+
+⦁	Establish Access to the Software
+⦁	Log in to the Cloudera Manager Server host.
+⦁	Remove any older files in the existing repository directory:
+sudo rm /etc/yum.repos.d/cloudera*manager.repo*
+⦁	 Create a repository file so that the package manager can locate and download the binaries named /etc/yum.repos.d/cloudera-manager.repo:
+⦁	nano /etc/yum.repos.d/cloudera-manager.repo (you can use vim editor if you wish to)
+⦁	Edit the repo file and put the below content only:
+			[cloudera-manager]
+# Packages for Cloudera Manager
+name=Cloudera Manager
+baseurl=https://<username>:<password>@archive.cloudera.com/p/cm7/7.1.1/redhat7/yum/
+gpgkey=https://<username>:<password>@archive.cloudera.com/p/cm7/7.1.1/redhat7/yum/RPM-GPG-KEY-cloudera
+gpgcheck=1
+
+⦁	A Cloudera Manager upgrade can introduce new package dependencies. Your organization may have restrictions or require prior approval for installation of new packages. You can determine which packages may be installed or upgraded:
+yum deplist cloudera-manager-agent
+⦁	Upgrade the Cloudera Manager Server
+⦁	Log in to the Cloudera Manager Admin Console. (If you started Server)
+⦁	Stop the Cloudera Management Service.  (If not stopped already)
+Note: Not stopping the Cloudera Management Service at this point might cause management roles to crash or the Cloudera Manager Server might fail to restart.
+⦁	Ensure that you have disabled any scheduled replication or snapshot jobs and wait for any running commands from the Cloudera Manager Admin Console to complete before proceeding with the upgrade.
+
+Note: If there are replication jobs, snapshot jobs, or other commands running when you stop Cloudera Manager Server, Cloudera Manager Server might fail to start after the upgrade. 
+⦁	If you have any Hive Replication Schedules that replicate to a cloud destination, delete these replication clusters before continuing with the upgrade. You can re-create these Replication Schedules after the Cloudera Manager upgrade is complete.
+⦁	Log in to the Cloudera Manager Server host. 
+⦁	Stop the Cloudera Manager Server. (Can ignore if already stopped)
+sudo systemctl stop cloudera-scm-server
+⦁	Stop the Cloudera Manager Agent.
+sudo systemctl stop cloudera-scm-agent
+⦁	Upgrade the packages.
+$ sudo yum clean all
+$ sudo yum upgrade cloudera-manager-server cloudera-manager-daemons cloudera-manager-agent
+⦁	You might be prompted about your configuration file version:
+Configuration file '/etc/cloudera-scm-agent/config.ini'
+==> Modified (by you or by a script) since installation.
+==> Package distributor has shipped an updated version.
+What would you like to do about it ? Your options are:
+Y or I : install the package maintainer's version
+N or O : keep your currently-installed version
+D : show the differences between the versions
+Z : start a shell to examine the situation
+The default action is to keep your current version.
+You may receive a similar prompt for /etc/cloudera-scm-server/db.properties. Answer N to both prompts.
+⦁	You may be prompted to accept the GPG key. Answer y.
+Retrieving key from https://archive.cloudera.com/.../cm/RPM-GPG-KEY-cloudera
+Importing GPG key ...
+ Userid     : "Yum Maintainer <webmaster@cloudera.com>"
+ Fingerprint: ...
+ From       : https://archive.cloudera.com/.../RPM-GPG-KEY-cloudera
+Note: If you receive the following error message when running these commands: [Errno 14] HTTP Error 404 - Not Found, make sure the URL in the cloudera-manager.repo file is correct and is reachable from the Cloudera Manager server host.
+⦁	If you customized the /etc/cloudera-scm-agent/config.ini file, your customized file is renamed with the extension .rpmsave or .dpkg-old. Merge any customizations into the /etc/cloudera-scm-agent/config.ini file that is installed by the package manager.
+⦁	Verify that you have the correct packages installed.
+$ rpm -qa 'cloudera-manager-*'
+OUTPUT:
+cloudera-manager-server-7.1.1-..cm...
+cloudera-manager-agent-7.1.1-..cm...
+cloudera-manager-daemons-7.1.1-..cm...
+cloudera-manager-server-db-2-7.1.1-..cm...
+⦁	Start the Cloudera Manager Agent.
+$ sudo systemctl start cloudera-scm-agent
+If the agent starts without errors, no response displays.
+⦁	Start the Cloudera Manager Server.
+$ sudo systemctl start cloudera-scm-server
+If the Cloudera Manager Server starts without errors, no response displays.
+⦁	Use a Web browser to open the Cloudera Manager Admin Console using the following URL:
+$ http://cloudera_Manager_server_hostname:7180/cmf/upgrade
+⦁	It can take several minutes for the Cloudera Manager Server to start, and the Cloudera Manager Admin Console is unavailable until the server startup is complete and the Upgrade Cloudera Manager page displays. Continue with the steps on the next page to upgrade the Cloudera Manager Agents.
+⦁	If you have problems starting the server or the agent, such as database permissions problems, you can use log files to troubleshoot the problem:
+⦁	tail -f /var/log/cloudera-scm-server/cloudera-scm-server.log
+⦁	tail -f /var/log/cloudera-scm-agent/cloudera-scm-agent.log
+⦁	tail -f /var/log/messages
+⦁	To complete the Cloudera Manager upgrade, continue with Upgrading the Cloudera Manager Agents.
+
+
+# Upgrade the Cloudera Manager Agents (Cloudera Manager 7.0.3 and higher)
+⦁	After upgrading and starting the Cloudera Manager server, open the Cloudera Manager Admin Console (if you have not already done so) using the following URL:
+http://cloudera_Manager_server_hostname:7180/cmf/upgrade 
+⦁	Click Upgrade Cloudera Manager Agent packages: The Upgrade Cloudera Manager Agent Packages page displays the Select Repository step.
+⦁	Select one of the following:
+⦁	Select Public Cloudera Repository if the Cloudera Manager server host has access to the internet.
+⦁	Select the Custom Repository If you are using a ⦁	local package repository instead of the public repository at https://archive.cloudera.com, option and enter the Custom Repository URL.
+⦁	Click Continue.
+⦁	The Select JDK screen displays the available options for the JDK used in the cluster. Choose one of the following options to install a JDK:
+⦁	Manually Manage JDK – Select this option if you have already installed a supported JDK. (Chose this option as we have already installed supported version)
+⦁	Install a Cloudera-provided version of OpenJDK – Cloudera Manager installs OpenJDK 8 on all your cluster hosts, except for the Cloudera Manager server host(s).
+⦁	Install a system-provided version of OpenJDK – Cloudera Manager installs the default version of OpenJDK provided by the host operating system.
+⦁	Click Continue: The Enter Login Credentials page displays.
+⦁	Specify the credentials and initiate Agent installation:
+⦁	Select root for the root account, or select Another user and enter the username for an account that has passwordless sudo permission.
+⦁	Select an authentication method: All hosts accept the same private key option, provide a passphrase and path to the required key files.
+⦁	Keep rest as default. (for this use case else you might need to change port if different and number of simultaneous install in case more than 10 hosts)
+⦁	Click Continue: The Cloudera Manager Agent packages and, if selected, the JDK are installed.
+⦁	When the installations are complete, click Finish.
+⦁	The Upgrade Cloudera Manager page displays the status of the upgrade. If you see a message listing Cloudera Manager Agents not upgraded, wait a few minutes for the agents to heartbeat and the click the Refresh button.
+⦁	After the Agents are all upgraded, Click Run Host Inspector to run the host inspector. Inspect the output and correct any warnings. If problems occur, you can make changes and then rerun the inspector.
+⦁	When you are satisfied with the inspection results, click Start the Cloudera Management Service.
+⦁	Confirm that you want to start the Cloudera Management Service by clicking Continue.
+⦁	After the Cloudera Management Service has started, click Finish.
+You will see a message indicating that the Cloudera Management Service has started.
+The upgrade is now complete.
+⦁	Click the Home Page link to return to the Home page. Review and fix any critical configuration issues. You may need to restart any clusters if they indicate stale configurations.
+⦁	To return to the Upgrade Cloudera Manager page, go to Hosts > All Hosts > Review Upgrade Status.
+
+# Post Upgrade Steps
+⦁	Start the Cloudera Management Service and adjust any configurations when prompted.
+⦁	If your deployment uses LDAP, you may see that its health test has a Disabled status, you can configure an LDAP Bind Distinguished Name and password to enable the health test.
+     In the Cloudera Manager Admin Console, go to Administration > Settings > External Authentication and set the following parameters:
+⦁	LDAP Bind Distinguished Name for Monitoring
+⦁	LDAP Bind Password for Monitoring
+⦁	If Cloudera Manager reports stale configurations after the upgrade, you might need to restart the cluster services and redeploy the client configurations. If any managed cluster includes the Hive and YARN components, this is required. If you will also be upgrading CDH, this step is not required.
+⦁	On the Home > Status tab, click   next to the cluster name, select Restart and confirm.
+⦁	On the Home > Status tab, click   next to the cluster name, select Deploy Client Configuration and confirm.
+
+
+# Cluster Upgrade Steps
+Upgrading a CDH cluster to CDP Data Center that was installed with packages is not supported. You must transition your cluster to use parcels before starting the upgrade.
+Rolling Upgrades are not supported when upgrading to CDP Data Center.
+
+⦁	Collect Information
+⦁	 Log in to the Cloudera Manager Admin console and find the following:
+⦁	The version of Cloudera Manager used in your cluster. Go to Support > About.
+⦁	The version of the JDK deployed in the cluster. Go to Support > About.
+⦁	Whether High Availability is enabled for HDFS. Go to the HDFS service and click the Actions button. If you see Disable High Availability, the cluster has High Availability enabled.
+⦁	The Install Method and Current cluster version. The cluster (CDH) version number and Install Method are displayed on the Cloudera Manager Home page, to the right of the cluster name.
+⦁	If the cluster uses Hive, validate the Hive Metastore Schema:
+⦁	In the Cloudera Manager Admin Console, Go to the Hive service.
+⦁	Select Actions > Validate Hive Metastore Schema.
+⦁	Fix any reported errors.
+⦁	Select Actions > Validate Hive Metastore Schema again to ensure that the schema is now valid.
+⦁	Run the Security Inspector and fix any reported errors.
+⦁	Goto Administration > Security > Security inspector.
+⦁	Log in to any cluster node as the hdfs user, run the following commands, and correct any reported errors:
+$ hdfs fsck / -includeSnapshots
+$ hdfs dfsadmin -report
+Note : The fsck command might take 10 minutes or more to complete, depending on the number of files in your cluster.
+⦁	Back up Cloudera Manager before beginning the upgrade.
+⦁	There are steps you must perform before beginning the upgrade for the following components:
+⦁	MapReduce 1 to MapReduce 2 (we skipped this the MR2 was already there, if you have MR1 the follow the steps ⦁	here)
+⦁	YARN Fair Scheduler is replaced by the Capacity Scheduler.
+⦁	Goto Service Yarn > configurations search > type”scheduler”
+⦁	Check the value selected for scheduler class: (we skipped this due to below mentioned step 4)
+⦁	org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.FairScheduler
+⦁	org.apache.hadoop.yarn.server.resourcemanager.scheduler.fifo.FifoScheduler
+⦁	org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler
+ 
+⦁	If you see the fair scheduler, it means you need to transition the fair scheduler to capacity scheduler.
+⦁	At this time we just selected the capacity scheduler and saved the config changes and restarted the stale services as our poc cluster did not have any custom defined queues, hence it should not be followed in production environments. (If you wish to transition scheduler you can follow steps ⦁	here)
+⦁	Cloudera Search (we skipped this as we did not have this service in the cluster)
+⦁	Sentry is replaced with Apache Ranger
+⦁	The Sentry service has been replaced with Apache Ranger in Cloudera Runtime 7.1. If you want to move your authorization privileges from Sentry to Ranger, several transition steps are required before upgrading your cluster to CDP Data Center.
+⦁	Export Sentry Permissions. In the Cloudera Manager Admin Console, go to the Sentry service and select Actions > Export Permissions.
+⦁	Make sure a MySQL database instance is running and available to be used by Ranger before you create a new cluster or upgrade your cluster from CDH to Cloudera Runtime.
+⦁	Log in to the host where you want to set up the MySQL database for Ranger.
+⦁	Make sure you have the MYSQL connector version 5.7 or higher in the /usr/share/java/ directory with name mysql-connector-java.jar.
+⦁	Edit the following file: /etc/my.cnf and add the following line:
+$ log_bin_trust_function_creators = 1
+⦁	 Restart the database:
+$ systemctl restart mysqld
+⦁	Log in to mysql:
+$ mysql -u root -pHashmap@123
+⦁	Run the following commands to create the Ranger database and user. Substitute the following in the command:
+CREATE DATABASE ranger;
+CREATE USER 'ranger'@'%' IDENTIFIED BY 'Hashmap1';
+CREATE USER 'ranger'@'localhost' IDENTIFIED BY 'Hashmap1';
+CREATE USER 'ranger'@'<Ranger Admin Role hostname>' IDENTIFIED BY 'Hashmap1';
+GRANT ALL PRIVILEGES ON ranger.* TO 'rangeradmin'@'%';
+GRANT ALL PRIVILEGES ON ranger.* TO 'ranger'@'localhost';
+GRANT ALL PRIVILEGES ON ranger.* TO 'ranger'@'<Ranger Admin Role hostname>';
+FLUSH PRIVILEGES;
+⦁	Exit from Mysql
+⦁	Test connecting to the database using the following command.
+mysql -u ranger -pHashmap1
+⦁	After testing the connection, use the exit; command to exit MySQL.
+⦁	Continue with the cluster installation or upgrade to complete the transition. (Nothing to do for now with sentry, it will get upgraded to ranger in later steps)
+⦁	Cloudera Navigator is replaced by Apache Atlas(we skipped this step as we did not have this service installed)
+⦁	Hive1/2 to Hive3
+⦁	Find the name of your HDFS superuser group.
+For example, check the value of dfs.permissions.superusergroup in hdfs-site.xml.
+If you do not have an HDFS superuser group, create the group, and set the dfs.permissions.superusergroup value in hdfs-site.xml to the name of the superuser group.
+⦁	Check to see if the user hive is a member of the group.For example, if you have the members command installed:
+cat /etc/group | grep -i <supergroup name>
+⦁	Add the user hive to the group if necessary.
+
+usermod -a -G <supergroup name> hive
+⦁	After upgrading, remove hive from supergroup (see link below). This action removes super user privileges from the hive user to protect HDFS from unauthorized access.
+gpasswd -d hive <supergroup name>
+deluser hive <supergroup name>
+⦁	 In CDH 5.x it is possible to create tables with having the property transactional=false set. While this is a no-op setting, if any of your Hive tables explicitly set this, the upgrade process fails. So you must remove 'transactional'='false' from any tables you want to upgrade from CDH 5.x to CDP. (We skipped this as we did not have any tables in hive)
+$ beeline> ALTER TABLE my_table UNSET TBLPROPERTIES ('transactional');
+⦁	Backing Up Databases
+⦁	Perform the following steps for each database you back up:
+⦁	If not already stopped, stop the service. If Cloudera Manager indicates that there are dependent services, also stop the dependent services.
+⦁	Backup the database. Substitute the database name, hostname, port, user name, and backup directory path and run the following command:
+mysqldump --databases database_name --host=database_hostname --port=database_port -u database_username -p > backup_directory_path/database_name-backup-`date+%F`-CDH5.13.sql
+⦁	 Start the service.
+⦁	Backup Zookeeper
+⦁	On all ZooKeeper hosts, back up the ZooKeeper data directory specified with the dataDir property in the ZooKeeper configuration. The default location is /var/lib/zookeeper. For example:
+cp -rp /var/lib/zookeeper/ /var/lib/zookeeper-backup-`date +%F`CM7.1.1-CDH5.13
+⦁	To identify the ZooKeeper hosts, open the Cloudera Manager Admin console and go to the ZooKeeper service and click the Instances tab.
+⦁	Record the permissions of the files and directories; you will need these to roll back ZooKeeper.
+⦁	Backup Search (We skipped this as we did not have this service)
+⦁	Back up your Solr metadata using the following procedure. This procedure allows you to roll back to the pre-upgrade state if any problems occur during the upgrade process.
+⦁	Make sure that the HDFS and ZooKeeper services are running.
+⦁	Stop the Solr service (Solr service > Actions > Stop). If you see a message about stopping dependent services, click Cancel and stop the dependent services first, and then stop the Solr service.
+⦁	Make sure that the directory you specified for the Upgrade Backup Directory configuration property exists in HDFS and is writable by the Search superuser (solr by default).
+⦁	Back up the Solr configuration metadata (Solr service > Actions > Backup Solr Configuration Meta-data for Upgrade).
+⦁	Start the Solr service (Solr service > Actions > Start).
+⦁	Start any dependent services that you stopped.
+⦁	Backup HDFS
+Follow this procedure to back up an HDFS deployment.
+Note: To locate the hostnames required to backup HDFS (for JournalNodes, DataNodes, and NameNodes), open the Cloudera Manager Admin Console, go to the HDFS service, and click the Instances tab. 
+⦁	If high availability is enabled for HDFS, run the following command on all hosts running the JournalNode role: (we did not enable HA for Namenode so we skipped this step)
+cp -rp /dfs/jn /dfs/jn-CM7.1.1-CDH5.13
+⦁	On all NameNode hosts, back up the NameNode runtime directory. Run the following commands: (We ran it on only one host as we had only one Namenode)
+$ mkdir -p /etc/hadoop/conf.rollback.namenode
+$ cd /var/run/cloudera-scm-agent/process/ && cd `ls -t1 | grep -e "-NAMENODE\$" | head -1`
+$ cp -rp * /etc/hadoop/conf.rollback.namenode/
+$ rm -rf /etc/hadoop/conf.rollback.namenode/log4j.properties
+$ cp -rp /etc/hadoop/conf.cloudera.HDFS_service_name/log4j.properties /etc/hadoop/conf.rollback.namenode/
+These commands create a temporary rollback directory. If a rollback to CDH 5.x is required later, the rollback procedure requires you to modify files in this directory.
+⦁	Back up the runtime directory for all DataNodes. Run the following commands on all DataNodes:
+$ mkdir -p /etc/hadoop/conf.rollback.datanode/
+$ cd /var/run/cloudera-scm-agent/process/ && cd `ls -t1 | grep -e "-DATANODE\$" | head -1`
+$ cp -rp * /etc/hadoop/conf.rollback.datanode/
+$ rm -rf /etc/hadoop/conf.rollback.datanode/log4j.properties
+$ cp -rp /etc/hadoop/conf.cloudera.HDFS_service_name/log4j.properties /etc/hadoop/conf.rollback.datanode/
+⦁	If high availability is not enabled for HDFS, backup the runtime directory of the Secondary NameNode. Run the following commands on all Secondary NameNode hosts:
+$ mkdir -p /etc/hadoop/conf.rollback.secondarynamenode/
+$ cd /var/run/cloudera-scm-agent/process/ && cd `ls -t1 | grep -e "-SECONDARYNAMENODE\$" | head -1`
+$ cp -rp * /etc/hadoop/conf.rollback.secondarynamenode/
+$ rm -rf /etc/hadoop/conf.rollback.secondarynamenode/log4j.properties
+$ cp -rp /etc/hadoop/conf.cloudera.HDFS_service_name/log4j.properties /etc/hadoop/conf.rollback.secondarynamenode/
+⦁	
+⦁	
+⦁	Backup KTS and clients (Skipped)
+⦁	Backup HSM KMS (Skipped)
+⦁	Backup Navigator Encrypt (Skipped)
+⦁	Review Notes and Warnings
+⦁	The minor version of Cloudera Manager you use to perform the upgrade must be equal to or greater than the CDH minor version. Cloudera recommends that you upgrade to the latest maintenance version of Cloudera Manager before upgrading your cluster.
+⦁	Backing up data using Cloudera Manager Backup and Disaster Recovery (BDR) does not work when backing up a cluster from Cloudera Manager 5.13 and lower to CDH 6.0 or higher.
+⦁	You cannot upgrade from a cluster that uses Oracle 19.
+⦁	For upgrades from CDH 5 clusters with Sentry to Cloudera Runtime 7.1.1 (or higher) clusters where Sentry privileges are to be transitioned to Apache Ranger, the cluster must have Kerberos enabled before upgrading.
+⦁	 Backing Up Cloudera Manager
+Before you upgrade a cluster, back up Cloudera Manager. Even if you just backed up Cloudera Manager before an upgrade, you should now back up your upgraded Cloudera Manager deployment.
+⦁	Log in to the Cloudera Manager Server host.
+⦁	Create a top-level backup directory.
+⦁	export CM_BACKUP_DIR="`date +%F`-CM5.13"
+⦁	echo $CM_BACKUP_DIR
+⦁	mkdir -p $CM_BACKUP_DIR
+⦁	Back up the Cloudera Manager Server directories:
+⦁	sudo -E tar -cf $CM_BACKUP_DIR/cloudera-scm-server.tar /etc/cloudera-scm-server /etc/default/cloudera-scm-server
+⦁	Back up the existing repository directory.
+⦁	sudo -E tar -cf $CM_BACKUP_DIR/repository.tar /etc/yum.repos.d
+⦁	Enter Maintenance Mode
+⦁	To avoid unnecessary alerts during the upgrade process, enter maintenance mode on your cluster before you start the upgrade.Entering maintenance mode stops email alerts and SNMP traps from being sent, but does not stop checks and configuration validations. Be sure to exit maintenance mode when you have finished the upgrade to re-enable Cloudera Manager alerts.
+⦁	On the Home > Status tab, click the actions menu next to the cluster name and select Enter Maintenance Mode.
+⦁	Run Hue Document Cleanup(we skipped this)
+⦁	Access Parcels
+⦁	To add new parcel follow below steps:
+⦁	Log in to the Cloudera Manager Admin Console.
+⦁	Click Parcels from the left menu.
+⦁	Click Parcel Repositories & Network Settings.
+⦁	In the Remote Parcel Repository URLs section, click the "+" icon and add the URL for your Parcel repository.
+archive.cloudera.com/p/cdh7/7.1.1.0/parcels/
+⦁	Click Save & Verify Configuration. A message with the status of the verification appears above the Remote Parcel Repository URLs section. If the URL is not valid, check the URL and enter the correct URL.
+⦁	After the URL is verified, click Close.
+⦁	Click the Cloudera Manager logo to return to the home page.
+⦁	
+⦁	
+⦁	Run The Upgrade Cluster Wizard
+⦁	Log in to the Cloudera Manager Admin Console.
+⦁	Click the Actions menu and select Upgrade Cluster. 				The Getting Started screen of the Upgrade Wizard displays.
+⦁	Click the Upgrade to Version: drop-down and select the version of CDH or Cloudera Runtime for your upgrade.						 The wizard now runs several checks to make sure that your cluster is ready for upgrade. You must resolve any reported issues before continuing.
+⦁	Click the Download and Distribute Parcel button.				The parcel downloads from the Remote Repository URL you specified. After it is downloaded, Cloudera Manager distributes the parcel to all of the cluster hosts and unpacks it. Depending on network bandwidth, this process may take some time.
+Note:You must wait until the parcel is downloaded, distributed, and unpacked before continuing.
+⦁	The Install Services section displays any additional services that you need to install to upgrade your cluster.							 If you are upgrading a cluster that has the Hive service, you will be prompted to add the Tez, Zookeeper, Hive on Tez, and YARN QueueManager services.
+Warning:When you add Hive-on-Tez service, the Assign Roles page displays. You must ensure that the number of HiveServer2 roles present in the Hive service before the upgrade are included when the Assign Roles page displays. (You can verify this by opening the Cloudera Manager Admin Console Home page in a new browser tab, and going to the Instances tab in the Hive service.) If the number of HiveServer2 roles is not the same, the cluster upgrade will fail and the cluster will be unusable. If your upgrade fails, please contact Cloudera Support.
+⦁	The Sentry service is replaced by Apache Ranger in CDP Data Center. If the cluster has the Sentry service installed, you can migrate to Apache Ranger.The Apache Ranger service depends on the ZooKeeper and Solr services. The upgrade wizard display buttons for installing several dependent services that are required for Apache Ranger. If your cluster does not include these services, buttons will appear to install them.
+⦁	If the cluster does not already have the ZooKeeper service, click the Add ZooKeeper Service button. The Assign Roles page displays the role assignment for the ZooKeeper service. You can keep the assigned host or assign the role to a different host.
+⦁	Click Continue: The Review Changes screen displays where you can change the default configurations.
+⦁	Click Continue: The upgrade wizard resumes.
+⦁	If the cluster does not already have the Solr service, click the Add Solr Service button. The Assign Roles page displays with the role assignment for the Solr service. You can keep the assigned host or assign the role to a different host.
+⦁	Click Continue: The Review Changes screen displays where you can change the default configurations.
+⦁	Click Continue: The upgrade wizard resumes.
+⦁	Click the Add Ranger Service button. The Assign Roles page displays with the role assignment for the Ranger service.
+⦁	Assign the following Ranger roles to cluster hosts:
+⦁	Ranger Admin -- you must assign this role to the host you specified when you set up the Ranger database.
+⦁	Ranger Usersync
+⦁	Ranger Tagsync
+⦁	The Ranger Review Changes screen displays. Review the configurations and make any necessary changes. You must provide values for the following:
+⦁	Ranger Admin User Initial Password – choose a password.
+⦁	Ranger Usersync User Initial Password – choose a password.
+⦁	Ranger Tagsync User Initial Password – choose a password.
+⦁	Ranger KMS Keyadmin user initial Password – choose a password.
+⦁	Ranger Database Type Chose either MySQL, PostgreSQL, or Oracle.
+⦁	Ranger Database Host – enter the hostname where the Ranger database is running.
+⦁	Ranger Database User Password – enter the password you created when you created the Ranger database and user. rangeradmin.
+⦁	Ranger Admin Max Heapsize – set the default value instead of minimum value by clicking the curved blue arrow.  
+⦁	Ranger Tagsync Max Heapsize – set the default value instead of minimum value by clicking the curved blue arrow.  
+⦁	Ranger Usersync Max Heapsize – set the default value instead of minimum value by clicking the curved blue arrow.  
+⦁	Click Continue.
+⦁	If your cluster does not have the YARN Queue Manager, installed, a button will appear to add the YARN Queue Manager service because it is required for the Capacity Scheduler, which is the supported scheduler.
+ 
+⦁	The Other Tasks section lists other tasks or reminders to note before continuing. Select the option to confirm that you understand before continuing.
+⦁	The Inspector Checks section displays sever inspectors you must run before continuing. If these inspectors report errors, you must resolve those before continuing.
+⦁	Click the Show Inspector Results button to see details of the inspection.
+⦁	Click the Run Again button to verify that you have resolved the issue.
+⦁	If you are confident that the errors are not critical, select Skip this step. I understand the risks..
+⦁	The Inspector Checks section includes the following inspectors:
+⦁	Host Inspector
+⦁	Service Inspector
+Run these inspectors and correct any reported errors before continuing.
+⦁	The Database Backup section asks you to verify that you have completed the necessary backups. Select Yes, I have performed these steps.
+⦁	Click Continue. (The Continue button remains greyed out until all upgrades steps are complete and all warnings have been acknowledged.)
+⦁	Click Continue again to shut down the cluster and begin the upgrade.	 The Upgrade Cluster Command screen opens and displays the progress of the upgrade.
+⦁	When the Upgrade steps are complete, click Continue.			 The Summary page opens and displays any additional steps you need to complete the upgrade.
+⦁	Click Continue.
+⦁	Manual steps to Upgrade CDH (we used this step because the upgrade wizard failed at run tests and start services)
+⦁	Start Zookeeper
+⦁	Go to the ZooKeeper service.
+⦁	Select Actions > Start.
+⦁	Upgrade HDFS Metadata
+⦁	Go to the HDFS service.
+⦁	Select Actions > Upgrade HDFS Metadata and click Upgrade HDFS Metadata to confirm.
+⦁	Start HDFS
+⦁	Go to the HDFS service.
+⦁	Select Actions > Start.
+⦁	Upgrade the Sentry Database
+⦁	Go to the Sentry service.
+⦁	If the Sentry service is running, stop it:
+⦁	Select Actions > Stop and click Stop to confirm.
+⦁	Select Actions > Upgrade Sentry Database Tables and click Upgrade Sentry Database Tables to confirm.
+⦁	Start Sentry Service
+⦁	Go to the Sentry service.
+⦁	Select Actions > Start.
+⦁	Upgrade Solr
+⦁	If you have Sentry service in the cluster:
+⦁	If the Solr service is running, stop it:
+⦁	Select Actions > Stop and click Stop to confirm.
+⦁	If the Sentry service is not running, start it:
+⦁	Select Actions > Start and click Start to confirm.
+⦁	Select Actions > Migrate Sentry Privileges for Solr and click Migrate Sentry Privileges for Solr to confirm
+⦁	If the Sentry service is running, stop it:
+⦁	Select Actions > Stop and click Stop to confirm.
+⦁	If the Zookeeper service is not running, start it:
+⦁	Select Actions > Start and click Start to confirm.
+⦁	If the HDFS service is not running, start it:
+⦁	Select Actions > Start and click Start to confirm.
+⦁	Select Actions > Reinitialize Solr State for Upgrade and click Reinitialize Solr State for Upgrade to confirm.
+⦁	Set the Solr configuration parameter Solr Server for Upgrade to the Solr service being upgraded.
+⦁	Select Actions > Bootstrap Solr Configuration and click Bootstrap Solr Configuration to confirm.
+⦁	Start the Solr and dependent services. Click Actions > Start.
+⦁	Click Actions > Bootstrap Solr Collections.
+⦁	Upgrade Yarn
+⦁	Ensure that the ZooKeeper and HDFS services are running.
+⦁	Ensure that the YARN service is stopped.
+⦁	Go to the YARN service.
+⦁	Select Actions > Clean NodeManager Recovery Directory and click Clean NodeManager Recovery Directory to confirm.
+⦁	Install MR Framework Jars
+⦁	Go to the YARN service.
+⦁	Select Actions > Install YARN MapReduce Framework JARs and click Install YARN MapReduce Framework JARs to confirm.
+⦁	Start YARN
+⦁	Go to the YARN service.
+⦁	Select Actions > Start.
+⦁	Deploy Client Configuration Files
+⦁	On the Home page, click to the right of the cluster name and select Deploy Client Configuration.
+⦁	Click the Deploy Client Configuration button in the confirmation pop-up that appears.
+⦁	Upgrade the Spark Standalone Service
+⦁	Go to the Spark service.
+⦁	If the Spark service is running, stop it:
+⦁	Select Actions > Stop and click Stop to confirm.
+⦁	Select Actions > Install Spark JAR and click Install Spark JAR to confirm.
+⦁	Start Spark service
+⦁	 Note, all SPARK and SPARK2 are no longer differentiated, they are just SPARK.
+⦁	Go to each Spark service.
+⦁	Select Actions > Start.
+⦁	Upgrade the Hive Metastore Database 
+Note: Your upgrade will fail if you do not complete this step.
+⦁	Go to the Hive service.
+⦁	If the Hive service is running, stop it:
+⦁	Select Actions > Stop and click Stop to confirm.
+⦁	Select Actions > Upgrade Hive Metastore Database Schema and click Upgrade Hive Metastore Database Schema to confirm.
+⦁	If you have multiple instances of Hive, perform the upgrade on each metastore database.
+⦁	Select Actions > Validate Hive Metastore Schema and click Validate Hive Metastore Schema to check that the schema is now valid.
+⦁	Start Hive
+⦁	Go to the Hive service.
+⦁	Select Actions > Start.
+⦁	Validate the Hive Metastore Database Schema
+Note: Your upgrade will fail if you do not complete this step.
+⦁	Select Actions > Validate Hive Metastore Schema and click Validate Hive Metastore Schema to confirm.
+⦁	If you have multiple instances of Hive, perform the validation on each metastore database.
+⦁	Select Actions > Validate Hive Metastore Schema and click Validate Hive Metastore Schema to check that the schema is now valid.
+⦁	Upgrade Oozie
+⦁	Go to the Oozie service.
+⦁	Select Actions > Stop and click Stop to confirm.
+⦁	Select Actions > Upgrade Oozie Database Schema and click Upgrade Oozie Database Schema to confirm.
+⦁	Upgrade the Oozie SharedLib
+⦁	Go to the Oozie service
+⦁	If the Oozie service is stopped, start it:
+⦁	Select Actions > Start and click Start to confirm.
+⦁	Select Actions > Install Oozie SharedLib and click Install Oozie SharedLib to confirm.
+⦁	Start Remaining Cluster Services
+⦁	Use rolling restart or full restart.
+⦁	Ensure that all services are started or restarted. You can use Cloudera Manager to start the cluster, or you can restart the services individually. The Cloudera Manager Home page indicates which services have stale configurations and require restarting.
+⦁	To start or restart the cluster:
+⦁	On the Home > Status page, click the down arrow to the right of the cluster name and select Start or Restart.
+⦁	Click Start that appears in the next screen to confirm. The Command Details window shows the progress of starting services.
+⦁	When All services successfully start appears, the task is complete and you can close the Command Details window.
+⦁	Finalize the HDFS Upgrade
+⦁	To determine if you can finalize the upgrade, run important workloads and ensure that they are successful. After you have finalized the upgrade, you cannot roll back to a previous version of HDFS without using backups. Verifying that you are ready to finalize the upgrade can take a long time.
+⦁	 Make sure you have enough free disk space, keeping in mind that the following behavior continues until the upgrade is finalized:
+⦁	Deleting files does not free up disk space.
+⦁	Using the balancer causes all moved replicas to be duplicated.
+⦁	All on-disk data representing the NameNodes metadata is retained, which could more than double the amount of space required on the NameNode and JournalNode disks.
+⦁	Go to the HDFS service.
+⦁	Click the Instances tab.
+⦁	Click the link for the NameNode instance.
+The NameNode instance page displays.
+⦁	Select Actions > Finalize Metadata Upgrade and click Finalize Metadata Upgrade to confirm
+⦁	Complete Post Upgrade Steps
+⦁	Apache Hive
+⦁	Remove hive user from supergroup
+⦁	Find the name of your HDFS superuser group.
+For example, check the value of dfs.permissions.superusergroup in hdfs-site.xml.
+⦁	Remove the user hive from supergroup using
+ $ gpasswd -d hive <supergroup name>
+
+⦁	Configure Hive server for ETL using YARN Queues:
+If you upgrade from CDH and want to run an ETL job, you need to set several configuration properties to allow placement of the Hive workload on the Yarn queue manager.
+⦁	In Cloudera Manager, click Clusters > Hive on Tez > Configuration.
+⦁	Search for the Hive Service Advanced Configuration Snippet (Safety Valve) for hive-site.xml setting.
+⦁	In the Hive Service Advanced Configuration Snippet (Safety Valve) for hive-site.xml setting, click +.
+⦁	In Name enter the property hive.server2.tez.initialize.default.sessions and in value enter false.
+⦁	In Name enter the property hive.server2.tez.queue.access.check and in value enter true.
+⦁	In Name enter the property hive.server2.tez.sessions.custom.queue.allowed and in value enter true.
+⦁	In CDP, there is no Hive-Spark dependency. The Spark site and libs are not in the classpath.
+⦁	Before Upgrade to CDP
+CDH supported Hive on Spark and the following configuration to enable Hive on Spark: set hive.execution.engine=spark
+⦁	After Upgrade to CDP
+CDP does not support Hive on Spark. Scripts that enable Hive on Spark do not work.
+⦁	Action Required
+Remove set hive.execution.engine=spark from your scripts.
+⦁	Exit Maintenance Mode
+⦁	If you entered maintenance mode during this upgrade, exit maintenance mode.
+On the Home > Status tab, click   next to the cluster name and select Exit Maintenance Mode.
+
+# Problems and resolution
+⦁	HDFS finalize upgrade failed with below error:
+2020-08-12 16:02:16,941 	.
+java.io.IOException: 
+File system image contains an old layout version -60.
+An upgrade to version -64 is required.
+Please restart NameNode with the "-rollingUpgrade started" option if a rolling upgrade is already started; or restart NameNode with the "-upgrade" option to start a new upgrade.
+	at org.apache.hadoop.hdfs.server.namenode.FSImage.recoverTransitionRead(FSImage.java:279)
+	at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.loadFSImage(FSNamesystem.java:1142)
+	at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.loadFromDisk(FSNamesystem.java:744)
+	at org.apache.hadoop.hdfs.server.namenode.NameNode.loadNamesystem(NameNode.java:645)
+	at org.apache.hadoop.hdfs.server.namenode.NameNode.initialize(NameNode.java:716)
+	at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:959)
+	at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:932)
+	at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1669)
+	at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1736)
+2020-08-12 16:02:16,943 INFO org.apache.hadoop.util.ExitUtil: Exiting with status 1: java.io.IOException: 
+File system image contains an old layout version -60.
+An upgrade to version -64 is required.
+Please restart NameNode with the "-rollingUpgrade started" option if a rolling upgrade is already started; or restart NameNode with the "-upgrade" option to start a new upgrade.
+2020-08-12 16:02:16,946 INFO org.apache.hadoop.hdfs.server.namenode.NameNode: SHUTDOWN_MSG: 
+/************************************************************
+SHUTDOWN_MSG: Shutting down NameNode at ip-10-0-1-118.ec2.internal/10.0.1.118
+Solution: nano /dfs/nn/current/VERSION >changed 60 to 64
+ 
+⦁	 Error executing: DROP TABLE IF EXISTS `x_policy`; 
+com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException: Cannot delete or update a parent row: a foreign key constraint fails
+SQLException : SQL state: 23000 com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException: Cannot delete or update a parent row: a foreign key constraint fails ErrorCode: 1217
+2020-08-12 16:43:50,636  [E] ranger_core_db_mysql.sql file import failed!
+2020-08-12 16:43:50,636  [I] Unable to create DB schema, Please drop the database and try again
+2020-08-12 16:43:50,636  [JISQL] /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.262.b10-0.el7_8.x86_64/bin/java  -cp /usr/share/java/mysql-connector-java.jar:/opt/cloudera/parcels/CDH-7.1.1-1.cdh7.1.1.p0.3266817/lib/ranger-admin/jisql/lib/* org.apache.util.sql.Jisql -driver mysqlconj -cstring jdbc:mysql://ip-10-0-1-17.ec2.internal:3306/ranger -u 'ranger' -p '********' -noheader -trim -c \;  -query "delete from x_db_version_h where version = 'CORE_DB_SCHEMA' and active = 'N' and updated_by='ip-10-0-1-17.ec2.internal';"
+2020-08-12 16:43:51,095  [E] CORE_DB_SCHEMA import failed!
+Solution: 
+SET FOREIGN_KEY_CHECKS=0; -- to disable them (not best practice to keep disabled)
+SET FOREIGN_KEY_CHECKS=1; -- to re-enable them 
+⦁	This function has none of DETERMINISTIC, NO SQL, or READS SQL DATA in its declaration and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable
+Solution: Execute the following in the MySQL console:
+mysql> SET GLOBAL log_bin_trust_function_creators = 1;
+Add the following to the mysql.ini configuration file:
+log_bin_trust_function_creators = 1;
+⦁	Failed to configure urlScheme property for Solr cluster in Zookeeper
+Solution: solr service> action> initialize solr & create hdfs home dir 
+⦁	org.apache.hadoop.security.AccessControlException: SIMPLE authentication is not enabled
+Solution:
+set > HDFS (ranger-hdfs-audit): 
+xasecure.audit.destination.solr.zookeepers=NONE
+set> Ranger (ranger-admin-site):        ranger.audit.solr.urls=http://solrNode01.example.com:8993/solr/ranger_audits
+
+
+
