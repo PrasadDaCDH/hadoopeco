@@ -1,0 +1,171 @@
+KafkaISSUE:
+1>	Issue to create the topic and producer , consumer communication was present due to No ssl in Kerberised cluster
+Solution:
+1>	Create SSL Keystore,Trustore,Ca Certification authority which signs the certificate
+2>	Update those configuration in the Ambari as SSL keystore and Truststore values and there credentials.
+
+Steps to Configure the Kafka:
+1>Stop all Kafka Brokers
+2>login to the kafka broker machine
+
+3>Created the Certification Authority 
+openssl req -new -x509 -keyout ca-key -out ca-cert -days 365
+password: ***
+
+4>Created the truststore for kafka broker
+keytool -keystore kafka.server.truststore.jks -alias ca-cert -import -file ca-cert
+passwd:***
+
+5>Created a Keystore for the kafka broker
+keytool -keystore kafka.server.keystore.jks -alias kafka-server -validity 365 -genkey -keyalg RSA -ext SAN=dns:hostname.localdomain
+passwd: ***
+*Here make sure to give hostname as a name in the setup
+
+6>Created a Certification signing request so a certificate should be signed
+keytool -keystore kafka.server.keystore.jks -alias kafka-server -certreq -file ca-request-kafka
+passwd:***
+
+7>Signed the Certificate using openssl
+openssl x509 -req -CA ca-cert -CAkey ca-key -in ca-request-kafka -out ca-signed-kafka -days 365 -CAcreateserial
+enter password: ***
+
+8>Import the certificate to the kafka broker keystore of Certification Authority
+keytool -keystore kafka.server.keystore.jks -alias ca-cert -import -file ca-cert
+passwd: ***
+
+9>Import the signed certificate from the signed certificate from the CA
+keytool -keystore kafka.server.keystore.jks -alias kafka-server -import -file ca-signed-kafka
+***
+
+10>For clients create client Truststore
+keytool -keystore kafka.client.truststore.jks -alias ca-cert -import -file ca-cert
+
+Updated configuration in Ambari:
+1>	Listeners : SSL://hostname:8062
+2>	Configure advertised listeners with  : SSL://hostname:8062
+3>	Provide accurate location for the SSL keystore and truststore on the Ambari 
+4>	Provide the correct credentials and details to the Ambari
+5>	Start the kafka brokers
+
+*You can further configure the Consumer.properties and Producer.properties
+You can go with same keystore and truststore or can create new for them.
+Following are the configuration of Server.properties in hostname.localdomain
+
+
+advertised.listeners=SASL_SSL://hostname:8062
+authorizer.class.name=kafka.security.auth.SimpleAclAuthorizer
+auto.create.topics.enable=true
+auto.leader.rebalance.enable=true
+compression.type=producer
+controlled.shutdown.enable=true
+controlled.shutdown.max.retries=3
+controlled.shutdown.retry.backoff.ms=5000
+controller.message.queue.size=10
+controller.socket.timeout.ms=30000
+default.replication.factor=1
+delete.topic.enable=true
+external.kafka.metrics.exclude.prefix=kafka.network.RequestMetrics,kafka.server.DelayedOperationPurgatory,kafka.server.BrokerTopicMetrics.BytesRejectedPerSec
+external.kafka.metrics.include.prefix=kafka.network.RequestMetrics.ResponseQueueTimeMs.request.OffsetCommit.98percentile,kafka.network.RequestMetrics.ResponseQueueTimeMs.request.Offsets.95percentile,kafka.network.RequestMetrics.ResponseSendTimeMs.request.Fetch.95percentile,kafka.network.RequestMetrics.RequestsPerSec.request
+fetch.purgatory.purge.interval.requests=10000
+kafka.ganglia.metrics.group=kafka
+kafka.ganglia.metrics.host=localhost
+kafka.ganglia.metrics.port=8671
+kafka.ganglia.metrics.reporter.enabled=true
+kafka.metrics.reporters=org.apache.hadoop.metrics2.sink.kafka.KafkaTimelineMetricsReporter
+kafka.timeline.metrics.host_in_memory_aggregation=false
+kafka.timeline.metrics.host_in_memory_aggregation_port=61888
+kafka.timeline.metrics.host_in_memory_aggregation_protocol=http
+kafka.timeline.metrics.hosts=krishna.localdomain
+kafka.timeline.metrics.maxRowCacheSize=10000
+kafka.timeline.metrics.port=6188
+kafka.timeline.metrics.protocol=http
+kafka.timeline.metrics.reporter.enabled=true
+kafka.timeline.metrics.reporter.sendInterval=5900
+kafka.timeline.metrics.truststore.password=bigdata
+kafka.timeline.metrics.truststore.path=/etc/security/clientKeys/all.jks
+kafka.timeline.metrics.truststore.type=jks
+leader.imbalance.check.interval.seconds=300
+leader.imbalance.per.broker.percentage=10
+listeners=SASL_SSL://hostname:8062
+log.cleanup.interval.mins=10
+log.dirs=/kafka-logs,/var/kafka-logs
+log.index.interval.bytes=4096
+log.index.size.max.bytes=10485760
+log.retention.bytes=-1
+log.retention.bytes=-1
+log.retention.check.interval.ms=600000
+log.retention.hours=168
+log.roll.hours=168
+log.segment.bytes=1073741824
+message.max.bytes=1000000
+min.insync.replicas=1
+num.io.threads=8
+num.network.threads=3
+num.partitions=1
+num.recovery.threads.per.data.dir=1
+num.replica.fetchers=1
+offset.metadata.max.bytes=4096
+offsets.commit.required.acks=-1
+offsets.commit.timeout.ms=5000
+offsets.load.buffer.size=5242880
+offsets.retention.check.interval.ms=600000
+offsets.retention.minutes=86400000
+offsets.topic.compression.codec=0
+offsets.topic.num.partitions=50
+offsets.topic.replication.factor=1
+offsets.topic.segment.bytes=104857600
+port=8062
+principal.to.local.class=kafka.security.auth.KerberosPrincipalToLocal
+producer.metrics.enable=false
+producer.purgatory.purge.interval.requests=10000
+queued.max.requests=500
+replica.fetch.max.bytes=1048576
+replica.fetch.min.bytes=1
+replica.fetch.wait.max.ms=500
+replica.high.watermark.checkpoint.interval.ms=5000
+replica.lag.max.messages=4000
+replica.lag.time.max.ms=10000
+replica.socket.receive.buffer.bytes=65536
+replica.socket.timeout.ms=30000
+sasl.enabled.mechanisms=GSSAPI
+sasl.kerberos.principal.to.local.rules=RULE:[1:$1@$0](ambari-qa-devcluster@NEW-DEV.COM)s/.*/ambari-qa/,RULE:[1:$1@$0](hbase-devcluster@NEW-DEV.COM)s/.*/hbase/,RULE:[1:$1@$0](hdfs-devcluster@NEW-DEV.COM)s/.*/hdfs/,RULE:[1:$1@$0](spark-devcluster@NEW-DEV.COM)s/.*/spark/,RULE:[1:$1@$0](yarn-ats-devcluster@NEW-DEV.COM)s/.*/yarn-ats/,RULE:[1:$1@$0](.*@NEW-DEV.COM)s/@.*//,RULE:[2:$1@$0](amshbase@NEW-DEV.COM)s/.*/ams/,RULE:[2:$1@$0](amsmon@NEW-DEV.COM)s/.*/ams/,RULE:[2:$1@$0](amszk@NEW-DEV.COM)s/.*/ams/,RULE:[2:$1@$0](dn@NEW-DEV.COM)s/.*/hdfs/,RULE:[2:$1@$0](hbase@NEW-DEV.COM)s/.*/hbase/,RULE:[2:$1@$0](hive@NEW-DEV.COM)s/.*/hive/,RULE:[2:$1@$0](jhs@NEW-DEV.COM)s/.*/mapred/,RULE:[2:$1@$0](jn@NEW-DEV.COM)s/.*/hdfs/,RULE:[2:$1@$0](knox@NEW-DEV.COM)s/.*/knox/,RULE:[2:$1@$0](nm@NEW-DEV.COM)s/.*/yarn/,RULE:[2:$1@$0](nn@NEW-DEV.COM)s/.*/hdfs/,RULE:[2:$1@$0](oozie@NEW-DEV.COM)s/.*/oozie/,RULE:[2:$1@$0](rm@NEW-DEV.COM)s/.*/yarn/,RULE:[2:$1@$0](spark@NEW-DEV.COM)s/.*/spark/,RULE:[2:$1@$0](yarn@NEW-DEV.COM)s/.*/yarn/,RULE:[2:$1@$0](yarn-ats-hbase@NEW-DEV.COM)s/.*/yarn-ats/,DEFAULT
+
+sasl.mechanism.inter.broker.protocol=GSSAPI
+security.inter.broker.protocol=SASL_SSL
+socket.receive.buffer.bytes=102400
+socket.request.max.bytes=104857600
+socket.send.buffer.bytes=102400
+ssl.client.auth=required
+ssl.key.password=***
+ssl.keystore.location=/etc/security/serverKeys/kafka.server.keystore.jks
+ssl.keystore.password=***
+ssl.truststore.location=/etc/security/serverKeys/kafka.server.truststore.jks
+ssl.truststore.password=***
+super.users=User:kafka
+zookeeper.connect=hostname.localdomain:8011
+zookeeper.connection.timeout.ms=25000
+zookeeper.session.timeout.ms=30000
+zookeeper.set.acl=true
+zookeeper.sync.time.ms=2000
+
+Now start all the kafka brokers on Ambari Web ui.
+
+Please create both properties on the server you want to install kafka
+Consumer.properties
+bootstrap.servers=hostname:8062
+security.protocol=SASL_SSL
+ssl.truststore.location=/etc/security/serverKeys/kafka.consumer.truststore.jks
+ssl.truststore.password=***
+ssl.keystore.location=/etc/security/serverKeys/kafka.consumer.keystore.jks
+ssl.keystore.password=***
+ssl.key.password=***
+
+
+Producer.properties
+bootstrap.servers=hostname:8062
+security.protocol=SASL_SSL
+ssl.truststore.location=/etc/security/serverKeys/kafka.producer.truststore.jks
+ssl.truststore.password=***
+ssl.keystore.location=/etc/security/serverKeys/kafka.producer.keystore.jks
+ssl.keystore.password=***
+ssl.key.password=***
