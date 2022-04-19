@@ -1,0 +1,41 @@
+Following are the Steps taken to resolve the issue.
+
+Issue:
+one namenode was not able to stay active 
+it was always going to stop when it becomes active namenode.
+
+Root cause of the issue:
+Linux team has done patching on one machine and when machine was restarted
+it has firewall enabled wchich made one journal node incosistend beacause of which
+the namenode gone into inconsistent state.
+
+Following is the solution:
+
+1>Will put HDFS in safe mode :
+hdfs dfsadmin -fs hdfs://ganga.localdomain:8020 -safemode enter
+2>Will save the namespace:
+hdfs dfsadmin -fs hdfs://ganga.localdomain:8020 -saveNamespace
+3>Stop all Both HDFS Namenodes services and JournalNode Services
+>>Make Sure to Move the current data from krishna(bad) JN directory to alternate location first
+
+#su root
+#cd /hadoop/hdfs/journal/devcluster/current 
+#mv * /opt/backupjournal/
+4>Copy the original journalnode data from good JN to Krishna(bad) JN servers same directory
+>>scp from ganga (which one is active namenode)
+>>Become a root user
+#scp -r /hadoop/hdfs/journal/devcluster/current/* root@krishna.localdomain:/hadoop/hdfs/journal/devcluster/current/
+>>Make sure you set the permission and ownership properly
+#chown hdfs:hadoop /hadoop/hdfs/journal/devcluster/current/*
+
+7>Start the JournalNode krishna,godavari,ganga one by one node on Ambari:
+8> Start the active NameNode to refresh the configuration and then stop it.
+9> On the previous active node, run
+hdfs namenode -initializeSharedEdits -force
+hdfs zkfc -formatZK -force
+11>Restart the active NameNode
+12>On the standby NameNode run takes the current image from active namenode
+hdfs namenode -bootstrapStandby
+13>Start the Standby namenode
+14>After it starts as a standby then restart the zkfc to make one into active
+Thats it keep Monitoring
