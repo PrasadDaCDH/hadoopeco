@@ -1,0 +1,60 @@
+Open JDK update in Dev Cluster form java-1.8.0-openjdk-1.8.0.201.b06-1.el7_9.x86_64 to java-1.8.0-openjdk-1.8.0.322.b06-1.el7_9.x86_64
+
+Perquisites:
+1>(Make Sure internet is working).
+2>(Make sure Proxy is well configured).
+3>(Make sure Yum is working fine).
+4>(Configure yum repositories if not already working)
+5>(Take Backup of KDC and Postgres database)
+To backup all* databases;
+•	#kbd5_util dump -verbose dumpfile
+•	#pg_dumpall > all_pg_dbs.sql
+5>Stop the cluster completely through ambari web UI
+6>Stop Ambari server and Ambari-agents and Nifi
+(Stop Nifi if We are using Nifi)
+
+
+Step 1> Update JDK OpenJDK through YUM.
+•	#yum update java-1.8.0-openjdk.x86_64
+•	#yum update java-1.8.0-openjdk-devel.x86_64
+•	#yum update java-1.8.0-openjdk-headless.x86_64
+
+NOTE: Check All packages in /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.322.b06-1.el7_9.x86_64
+
+Step 2:>Update the new jdk in $PATH
+•	#vi /etc/profile.d/java-1.8.0-openjdk.sh
+•	(add the location of Newly installed JDK)
+•	#sh  /etc/profile.d/java-1.8.0-openjdk.sh
+•	#echo $PATH (check the Environment)
+
+Step 3>Check krb5.conf
+•	comment renewlifetime=7d parameter (please check and do step 1 to 4 for all machines first)
+
+Step 4>change ambari configuration
+(login to ambari server)
+•	#vi /etc/ambari-server/conf/ambari.properties
+•	#update java.home=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.322.b06-1.el7_9.x86_64 location
+
+Step 5>In ambari-agent.ini update the configurations
+•	force_https_protocol=PROTOCOL_TLSv1_2
+•	Do it for all servers
+
+Step 6>Start the ambari server 
+•	#service ambari-server start
+•	#service ambari-agent start(on all servers)
+
+Step 7>Restart the krb5kdc and kadmin
+•	#service kadmin restart
+•	#service krb5kdc restart(start if already stopped)
+
+Step 8:>
+•	Regenerate keytabs through the ambari web UI for All the services in ambari.
+•	Ambari web UI > Kerberos > Regenerate keytabs.
+
+Step 9> 
+For Nifi needed to update the new jdk path to the /usr/nifi/nifi-1.7.1/bin/nifi-env.sh file 
+export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.322.b06-1.el7_9.x86_64
+Then restarted Nifi server using ./nifi.sh stop and start respectively 
+
+Step 10>
+Observe the cluster for somewhile check hdfs and other services working capability.
