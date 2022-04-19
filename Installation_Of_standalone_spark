@@ -1,0 +1,41 @@
+Spark Version: 2.3.0
+
+export PYSPARK_PYTHON=/usr/bin/python
+export SPARK_HOME=/opt/spark
+export PATH=$PYSPARK_PYTHON:$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH
+
+enter into /etc/bashrc file
+
+ export PYSHARK_PYTHON=/usr/bin/python
+ export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64
+ export SPARK_HOME=/opt/spark/
+ export PATH=$PATH:$SPARK_HOME/bin:$SPARK_HOME/sbin
+ 
+enter into spark-env.sh file
+
+mkdir /opt/standalone_spark
+
+yum install spark2_3_1_0_0_78-2.3.2.3.1.0.0-78.noarch.rpm  spark2_3_1_0_0_78-python-2.3.2.3.1.0.0-78.noarch.rpm spark2_3_1_0_0_78-master-2.3.2.3.1.0.0-78.noarch.rpm  spark2_3_1_0_0_78-worker-2.3.2.3.1.0.0-78.noarch.rpm
+
+yum remove bigtop-jsvc.x86_64 hadoop_3_1_0_0_78.x86_64 hadoop_3_1_0_0_78-client.x86_64 hadoop_3_1_0_0_78-hdfs.x86_64 hadoop_3_1_0_0_78-mapreduce.x86_64 hadoop_3_1_0_0_78-yarn.x86_64 hbase_3_1_0_0_78.noarch hdp-select.noarch hive_3_1_0_0_78.noarch hive_3_1_0_0_78-jdbc.noarch ranger_3_1_0_0_78-hdfs-plugin.x86_64 ranger_3_1_0_0_78-hive-plugin.x86_64 ranger_3_1_0_0_78-yarn-plugin.x86_64 spark2_3_1_0_0_78.noarch tez_3_1_0_0_78.noarch  zookeeper_3_1_0_0_78.noarch 
+
+echo "export PATH=$PATH:/opt/standalone_spark/spark2/bin" >> /home/spark/.bashrc
+echo "export PATH=$PATH:/opt/standalone_spark/spark2/bin" >> /etc/profile
+
+
+/opt/maven/bin:/usr/lib64/qt-3.3/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin:/opt/spark//bin:/opt/spark//sbin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin:/opt/spark/bin:/opt/spark/sbin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin:/opt/spark/bin:/opt/spark/sbin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin:/opt/standalone_spark/spark2/bin
+
+chown -R spark:spark /opt/spark/
+chmod -R 755 /opt/spark/
+chown -R spark:spark /var/log/spark2
+chmod -R 755 /var/log/spark2
+
+export PATH=/opt/maven/bin:/usr/lib64/qt-3.3/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.201.b09-2.el7_6.x86_64/jre/bin
+
+spark-submit -class org.apache.spark.examples.SparkPi -master spark://mahanadi.localdomain:7077 –executor-memory 10G –total-executor-cores 10
+
+
+======================================================
+
+Monitoring spark jobs:
+
