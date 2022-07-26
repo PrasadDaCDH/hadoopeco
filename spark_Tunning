@@ -1,0 +1,24 @@
+spark.yarn.am.memory
+spark.yarn.am.cores 
+executor.memory
+spark.driver.memory
+spark.driver.maxResultSize
+spark.akka.frameSize 
+spark.driver.cores
+spark.yarn.driver.memory
+spark.yarn.driver.memoryOverhead
+spark.executor.instances
+spark.dynamicAllocation.enabled
+yarn.scheduler.increment-allocation-mb
+spark.memory.fraction
+spark.memory.storageFraction
+spark.akka.framesize
+spark.akka.threads
+spark.dynamicAllocation.schedulerbacklogTimeout
+spark.dynamicAllocation.sustainedSchedulerBacklogTimeout
+spark.dynamicAllocation.executorIdleTimeout
+yarn.nodemanager.aux-services
+spark.shuffle.service.enabled
+spark.shuffle.compress
+spark.shuffle.spill.compress
+Need to look little deep into Parallelize Data Ingestion, Parallelize the Data Processing, Garbage Collection 
