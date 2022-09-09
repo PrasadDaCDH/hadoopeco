@@ -1,0 +1,55 @@
+Postgres:
+
+psql:
+
+To list the database
+\l
+
+To coonect to the database
+\c databasename
+
+To display table:
+\dt 
+
+
+To find the total connections:
+select * from pg_stat_activity ;
+
+Throught netstat
+netstat -a | grep -c postgr
+
+I know you can set such a limit using:
+ALTER USER johndoe WITH CONNECTION LIMIT 2;
+
+To find the configuration file:
+psql -c 'SHOW config_file'
+
+Locatoin of configaration:
+/var/lib/pgsql/data/postgresql.conf
+
+
+To take a backup of the single database :
+pg_dump tecmintdb > tecmintdb.sql
+
+To bakup all databases at once:
+pg_dumpall > all_09092022.sql
+
+To restore it all:
+pgsql -f all_pg_dbs.sql postgres
+
+
+For Auto backup Script creation through crontab:
+
+You can perform backups at regular intervals using cron jobs. Cron jobs are a commonly used means for scheduling various kinds of tasks to run on a server.
+
+You can configure a cron job to automate PostgreSQL database backup as follows. Note that you need to run the following commands as the PostgreSQL superuser:
+
+$ mkdir -p /srv/backups/databases
+Next, run the following command to edit the crontab to add a new cron job.
+
+$ crontab -e
+Copy and paste the following line at the end of the crontab. You can use any of the dump formats explained above.
+
+0 0 * * *  pg_dump  -U postgres tecmintdb > /srv/backups/postgres/tecmintdb.sql
+Save the file and exit.
+
